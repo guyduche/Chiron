@@ -48,6 +48,7 @@ def main(arguments=sys.argv[1:]):
     #parser for 'train' command
     parser_train=subparsers.add_parser('train',description='Model training',help='Train a model.')
     parser_train.add_argument('-i','--data_dir',required=True,help="Folder containing the labelled data.")
+    parser_train.add_argument('-c','--cache_dir',type=str,default=None,help="Cache folder.")
     parser_train.add_argument('-o','--log_dir',required=True,help="Log dir which save the trained model")
     parser_train.add_argument('-n','--model_name',required=True,help="Model name saved.")
     parser_train.add_argument('-t','--retrain',type=bool,default=False,help="If retrain is true, the previous trained model will be loaded from LOG_DIR before training.")
