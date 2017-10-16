@@ -170,8 +170,15 @@ class DataSet(object):
           end = self._index_in_epoch
           event_new_part,label_new_part = self.read_into_memory(self._perm[start:end])
           
-          event_batch = np.concatenate((event_rest_part, event_new_part), axis=0)
-          label_batch = np.concatenate((label_rest_part, label_new_part), axis=0)
+          if event_rest_part.size > 0:
+            event_batch = np.concatenate((event_rest_part, event_new_part), axis=0)
+          else:
+            event_batch = event_new_part
+          if label_rest_part.size > 0:
+            label_batch = np.concatenate((label_rest_part, label_new_part), axis=0)
+          else:
+            label_batch = label_new_part
+          
         else:
           self._index_in_epoch += batch_size
           end = self._index_in_epoch
