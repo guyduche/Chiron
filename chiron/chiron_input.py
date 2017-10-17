@@ -174,7 +174,7 @@ class DataSet(object):
             event_batch = np.concatenate((event_rest_part, event_new_part), axis=0)
           else:
             event_batch = event_new_part
-          if label_rest_part.size > 0:
+          if self.for_eval == False and label_rest_part.size > 0:
             label_batch = np.concatenate((label_rest_part, label_new_part), axis=0)
           else:
             label_batch = label_new_part
