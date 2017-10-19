@@ -19,12 +19,11 @@ def rnn_layers(x,seq_length,training,hidden_num=100,layer_num = 3,class_n = 5):
         #cell_fw = BNLSTMCell(hidden_num,training = training)#,training)
         #cell_bw = BNLSTMCell(hidden_num,training = training)#,training)
         cell_fw = LSTMCell(hidden_num)
-	cell_bw = LSTMCell(hidden_num)
-	cells_fw.append(cell_fw)
+        cell_bw = LSTMCell(hidden_num)
+        cells_fw.append(cell_fw)
         cells_bw.append(cell_bw)
     with tf.variable_scope('BDLSTM_rnn') as scope:
-        lasth,_,_=stack_bidirectional_dynamic_rnn(cells_fw = cells_fw,cells_bw=cells_bw,\
-                                                inputs = x,sequence_length = seq_length,dtype = tf.float32,scope=scope)
+        lasth,_,_=stack_bidirectional_dynamic_rnn(cells_fw = cells_fw,cells_bw=cells_bw,inputs = x,sequence_length = seq_length,dtype = tf.float32,scope=scope)
     #shape of lasth [batch_size,max_time,hidden_num*2]
     batch_size = lasth.get_shape().as_list()[0]
     max_time = lasth.get_shape().as_list()[1]

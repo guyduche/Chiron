@@ -75,7 +75,7 @@ def train():
     summary = tf.summary.merge_all()
     
     sess = tf.Session(config = tf.ConfigProto(allow_soft_placement=True))
-    save_model()
+#    save_model()
     if FLAGS.retrain==False:
         sess.run(init)
         print("Model init finished, begin loading data. \n")
@@ -100,7 +100,7 @@ def train():
 	    end = time.time()
             print "Step %d/%d Epoch %d, batch number %d, loss: %5.3f edit_distance: %5.3f Elapsed Time/step: %5.3f"\
             %(i,FLAGS.max_steps,train_ds.epochs_completed,train_ds.index_in_epoch,loss_val,error_val,(end-start)/(i+1))
-            saver.save(sess,FLAGS.log_dir+FLAGS.model_name+'/model.ckpt',global_step=global_step_val)
+#            saver.save(sess,FLAGS.log_dir+FLAGS.model_name+'/model.ckpt',global_step=global_step_val)
             summary_str = sess.run(summary, feed_dict=feed_dict)
             summary_writer.add_summary(summary_str, global_step = global_step_val)
             summary_writer.flush()
