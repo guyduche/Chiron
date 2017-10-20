@@ -13,7 +13,7 @@ raw_labels = collections.namedtuple('raw_labels',['start','length','base'])
 
 class Flags(object):
     def __init__(self):
-        self.max_reads_number = 1000000
+        self.max_reads_number = 10000
         self.MAXLEN = 1e3 #Maximum Length of the holder in biglist. 1e6 by default
 #        self.max_segment_len = 200
 FLAGS = Flags()
@@ -213,24 +213,24 @@ def read_data_for_eval(file_path,start_index=0,step = 20,seg_length = 200):
         evaluation = DataSet(event = event,event_length = event_len,label = label,label_length = label_len,for_eval = True)
     return evaluation
 
-def read_cache_dataset(h5py_file_path):
-    """Notice: Return a data reader for a h5py_file, call this function multiple
-    time for parallel reading, this will give you N dependent dataset reader,
-    each reader read independently from the h5py file."""
-    hdf5_record = h5py.File(h5py_file_path,"r")
-    event_h = hdf5_record['event/record']
-    event_length_h = hdf5_record['event/length']
-    label_h = hdf5_record['label/record']
-    label_length_h = hdf5_record['label/length']
-    event_len = len(event_h)
-    label_len = len(label_h)
-    assert len(event_h) == len(event_length_h)
-    assert len(label_h) == len(label_length_h)
-    event = biglist(data_handle = event_h,length = event_len,cache = True)
-    event_length = biglist(data_handle = event_length_h,length = event_len,cache = True)
-    label = biglist(data_handle = label_h,length = label_len,cache = True)
-    label_length = biglist(data_handle = label_length_h,length = label_len,cache = True)
-    return DataSet(event = event,event_length = event_length,label = label,label_length = label_length)
+#def read_cache_dataset(h5py_file_path):
+#    """Notice: Return a data reader for a h5py_file, call this function multiple
+#    time for parallel reading, this will give you N dependent dataset reader,
+#    each reader read independently from the h5py file."""
+#    hdf5_record = h5py.File(h5py_file_path,"r")
+#    event_h = hdf5_record['event/record']
+#    event_length_h = hdf5_record['event/length']
+#    label_h = hdf5_record['label/record']
+#    label_length_h = hdf5_record['label/length']
+#    event_len = len(event_h)
+#    label_len = len(label_h)
+#    assert len(event_h) == len(event_length_h)
+#    assert len(label_h) == len(label_length_h)
+#    event = biglist(data_handle = event_h,length = event_len,cache = True)
+#    event_length = biglist(data_handle = event_length_h,length = event_len,cache = True)
+#    label = biglist(data_handle = label_h,length = label_len,cache = True)
+#    label_length = biglist(data_handle = label_length_h,length = label_len,cache = True)
+#    return DataSet(event = event,event_length = event_length,label = label,label_length = label_length)
     
 def read_raw_data_sets(data_dir,h5py_file_path=None,seq_length = 300,k_mer = 1,max_reads_num = FLAGS.max_reads_number):
     ###Read from raw data
@@ -261,7 +261,7 @@ def read_raw_data_sets(data_dir,h5py_file_path=None,seq_length = 300,k_mer = 1,m
                 if len(f_signal)==0:
                     continue
                 try:
-                    f_label = read_label(data_dir+file_pre+'.label',skip_start = 10,window_n = (k_mer-1)/2)
+                    f_label = read_label(data_dir+file_pre+'.label',skip_start = 0,window_n = (k_mer-1)/2)
                 except:
                     sys.stdout.write("Read the label %s fail.Skipped."%(name))
                     continue
@@ -299,18 +299,28 @@ def read_raw_data_sets(data_dir,h5py_file_path=None,seq_length = 300,k_mer = 1,m
                         sys.stdout.write("%d lines read.   \n" % (count) )
                 file_count+=1
     #            print("Successfully read %d"%(file_count))
-    train = read_cache_dataset(h5py_file_path)
+    assert len(event) == len(event_length)
+    assert len(label) == len(label_length)
+    train_event = event
+    train_event_length = event_length
+    train_label = label
+    train_label_length = label_length
+    train = DataSet(event = train_event,event_length = train_event_length,label = train_label,label_length = train_label_length)
+#    train = read_cache_dataset(h5py_file_path)
     return train
+
 def read_signal(file_path,normalize = True):
-    f_h = open(file_path,'r')
-    signal = list()
-    for line in f_h:
-        signal+=[float(x) for x in line.split()]
-    signal = np.asarray(signal)
+    with open(file_path,'r') as f_h:
+        signal = []
+        for line in f_h:
+            for x in line.split():
+                signal.append(np.float(x))
+        signal = np.asarray(signal)
+    
     if len(signal)==0:
         return signal.tolist()
     if normalize:
-        signal = (signal - np.mean(signal))/np.float(np.std(signal))
+        signal = (signal - signal.mean()) / signal.std()
     return signal.tolist()
 
 def read_label(file_path,skip_start=10,window_n = 0):
