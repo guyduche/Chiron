@@ -80,7 +80,6 @@ class biglist(object):
          return self.handle[val]
         else:
             return self.holder[val]
-            
 
 class DataSet(object):
     def __init__(self,
@@ -104,7 +103,7 @@ class DataSet(object):
         self._index_in_epoch = 0
         self._for_eval = for_eval
         self._perm = np.arange(self._reads_n)
-        
+    
     @property
     def event(self):
         return self._event    
@@ -129,18 +128,18 @@ class DataSet(object):
     @property
     def for_eval(self):
         return self._for_eval
-        
     @property
     def perm(self):
         return self._perm
     
-    def read_into_memory(self,index):
+    def read_into_memory(self, index):
         event = np.asarray(zip([self._event[i] for i in index],[self._event_length[i] for i in index]))
 	if not self.for_eval:
         	label = np.asarray(zip([self._label[i] for i in index],[self._label_length[i] for i in index]))
         else:
 		label = []
 	return event,label
+
     def next_batch(self, batch_size,shuffle = True):
         """Return next batch in batch_size from the data set.
             Input Args:
@@ -188,6 +187,7 @@ class DataSet(object):
             label_batch = batch2sparse(label_batch)
         seq_length = event_batch[:,1].astype(np.int32)
         return np.vstack(event_batch[:,0]).astype(np.float32),seq_length,label_batch
+
 def read_data_for_eval(file_path,start_index=0,step = 20,seg_length = 200):
     '''
     Input Args:

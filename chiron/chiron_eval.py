@@ -13,15 +13,16 @@ from utils.easy_assembler import simple_assembly
 from utils.easy_assembler import simple_assembly_qs
 #from utils.easy_assembler import section_decoding
 from cnn import getcnnfeature
-from rnn import rnn_layers
+#from rnn import rnn_layers
+from rnn import rnn_layers_one_direction
 from utils.unix_time import unix_time
 
 def inference(x,seq_length,training):
     cnn_feature = getcnnfeature(x,training = training)
     feashape = cnn_feature.get_shape().as_list()
     ratio = FLAGS.segment_len/feashape[1]
-    logits = rnn_layers(cnn_feature,seq_length/ratio,training,class_n = 5 )
-#    logits = rnn_layers_one_direction(cnn_feature,seq_length/ratio,training,class_n = 4**FLAGS.k_mer+1 ) 
+#    logits = rnn_layers(cnn_feature,seq_length/ratio,training,class_n = 5 )
+    logits = rnn_layers_one_direction(cnn_feature,seq_length/ratio,training,class_n = 5) 
 #    logits = getcnnlogit(cnn_feature)
     return logits,ratio
 
