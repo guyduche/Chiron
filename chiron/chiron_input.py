@@ -11,10 +11,12 @@ import h5py
 import tempfile
 raw_labels = collections.namedtuple('raw_labels',['start','length','base'])
 
+# np.random.seed(42)
+
 class Flags(object):
     def __init__(self):
-        self.max_reads_number = 10000
-        self.MAXLEN = 1e3 #Maximum Length of the holder in biglist. 1e6 by default
+        self.max_reads_number = None
+        self.MAXLEN = 1e6 #Maximum Length of the holder in biglist. 1e6 by default
 #        self.max_segment_len = 200
 FLAGS = Flags()
 
@@ -47,13 +49,13 @@ class biglist(object):
             self.holder = self.holder[:size]
     def save_rest(self):
         if self.cache:
-         if len(self.holder)!=0:
-            self.save()
+            if len(self.holder)!=0:
+                self.save()
     def check_save(self):
         if len(self.holder) > FLAGS.MAXLEN:
-         self.save()
-         self.cache = True
-        
+            self.save()
+            self.cache = True
+
     def save(self):
         if type(self.holder[0]) is list:
             max_sub_len = max([len(sub_a) for sub_a in self.holder])
@@ -73,11 +75,12 @@ class biglist(object):
             self.len+=len(self.holder)
             del self.holder[:]
             self.holder = list()
+
     def __getitem__(self,val):
         if self.cache:
-         if len(self.holder)!=0:
-            self.save() 
-         return self.handle[val]
+            if len(self.holder)!=0:
+                self.save()
+            return self.handle[val]
         else:
             return self.holder[val]
 
@@ -103,10 +106,10 @@ class DataSet(object):
         self._index_in_epoch = 0
         self._for_eval = for_eval
         self._perm = np.arange(self._reads_n)
-    
+
     @property
     def event(self):
-        return self._event    
+        return self._event
     @property
     def label(self):
         return self._label
@@ -119,10 +122,10 @@ class DataSet(object):
     @property
     def reads_n(self):
         return self._reads_n
-    @property 
+    @property
     def index_in_epoch(self):
         return self._index_in_epoch
-    @property 
+    @property
     def epochs_completed(self):
         return self._epochs_completed
     @property
@@ -131,7 +134,7 @@ class DataSet(object):
     @property
     def perm(self):
         return self._perm
-    
+
     def read_into_memory(self, index):
         event = np.asarray(zip([self._event[i] for i in index],[self._event_length[i] for i in index]))
 	if not self.for_eval:
@@ -159,7 +162,7 @@ class DataSet(object):
           # Get the rest samples in this epoch
           rest_reads_n = self.reads_n - start
           event_rest_part,label_rest_part = self.read_into_memory(self._perm[start:self._reads_n])
-           
+
           # Shuffle the data
           if shuffle:
             np.random.shuffle(self._perm)
@@ -168,7 +171,7 @@ class DataSet(object):
           self._index_in_epoch = batch_size - rest_reads_n
           end = self._index_in_epoch
           event_new_part,label_new_part = self.read_into_memory(self._perm[start:end])
-          
+
           if event_rest_part.size > 0:
             event_batch = np.concatenate((event_rest_part, event_new_part), axis=0)
           else:
@@ -177,12 +180,12 @@ class DataSet(object):
             label_batch = np.concatenate((label_rest_part, label_new_part), axis=0)
           else:
             label_batch = label_new_part
-          
+
         else:
           self._index_in_epoch += batch_size
           end = self._index_in_epoch
           event_batch,label_batch = self.read_into_memory(self._perm[start:end])
-          
+
         if not self._for_eval:
             label_batch = batch2sparse(label_batch)
         seq_length = event_batch[:,1].astype(np.int32)
@@ -231,74 +234,64 @@ def read_data_for_eval(file_path,start_index=0,step = 20,seg_length = 200):
 #    label = biglist(data_handle = label_h,length = label_len,cache = True)
 #    label_length = biglist(data_handle = label_length_h,length = label_len,cache = True)
 #    return DataSet(event = event,event_length = event_length,label = label,label_length = label_length)
-    
-def read_raw_data_sets(data_dir,h5py_file_path=None,seq_length = 300,k_mer = 1,max_reads_num = FLAGS.max_reads_number):
+
+def read_raw_data_sets(data_dir,hdf5_record,seq_length = 300,k_mer = 1,max_reads_num = FLAGS.max_reads_number):
     ###Read from raw data
-    if h5py_file_path is None:
-        h5py_file_path = tempfile.mkdtemp()+'/temp_record.hdf5'
-    else:
-        try:
-            os.remove(os.path.abspath(h5py_file_path))
-        except:
-            pass
-        if not os.path.isdir(os.path.dirname(os.path.abspath(h5py_file_path))):
-            os.mkdir(os.path.dirname(os.path.abspath(h5py_file_path)))
-    with h5py.File(h5py_file_path,"a") as hdf5_record :
-        event_h = hdf5_record.create_dataset('event/record',dtype = 'float32', shape=(0,seq_length),maxshape = (None,seq_length))
-        event_length_h = hdf5_record.create_dataset('event/length',dtype = 'int32',shape=(0,),maxshape =(None,),chunks =True )
-        label_h = hdf5_record.create_dataset('label/record',dtype = 'int32',shape = (0,0),maxshape = (None,seq_length))
-        label_length_h = hdf5_record.create_dataset('label/length',dtype = 'int32',shape = (0,),maxshape = (None,))
-        event = biglist(data_handle = event_h)
-        event_length = biglist(data_handle = event_length_h)
-        label = biglist(data_handle = label_h)
-        label_length = biglist(data_handle = label_length_h)
-        count = 0
-        file_count = 0
-        for name in os.listdir(data_dir):
-            if name.endswith(".signal"):
-                file_pre = os.path.splitext(name)[0]
-                f_signal = read_signal(data_dir+name)
-                if len(f_signal)==0:
-                    continue
-                try:
-                    f_label = read_label(data_dir+file_pre+'.label',skip_start = 0,window_n = (k_mer-1)/2)
-                except:
-                    sys.stdout.write("Read the label %s fail.Skipped."%(name))
-                    continue
-    
-    #            if seq_length<max(f_label.length):
-    #                print("Sequence length %d is samller than the max raw segment length %d, give a bigger seq_length"\
-    #                                 %(seq_length,max(f_label.length)))
-    #                l_indx = range(len(f_label.length))
-    #                for_sort = zip(l_indx,f_label.length)
-    #                sorted_array = sorted(for_sort,key = lambda x : x[1],reverse = True)
-    #                index = sorted_array[0][0]
-    #                plt.plot(f_signal[f_label.start[index]-100:f_label.start[index]+f_label.length[index]+100])
-    #                continueholder_
-                tmp_event,tmp_event_length,tmp_label,tmp_label_length = read_raw(f_signal,f_label,seq_length)
-                event+=tmp_event
-                event_length+=tmp_event_length
-                label+=tmp_label
-                label_length+=tmp_label_length
-                del tmp_event
-                del tmp_event_length
-                del tmp_label
-                del tmp_label_length
-                count = len(event)
-                if file_count%10 ==0:
-                    if FLAGS.max_reads_number is not None:
-                        sys.stdout.write("%d/%d events read.   \n" % (count,FLAGS.max_reads_number) )
-                        if len(event)>FLAGS.max_reads_number:
-                            event.resize(FLAGS.max_reads_number)
-                            label.resize(FLAGS.max_reads_number)
-                            event_length.resize(FLAGS.max_reads_number)
-                            
-                            label_length.resize(FLAGS.max_reads_number)
-                            break
-                    else:
-                        sys.stdout.write("%d lines read.   \n" % (count) )
-                file_count+=1
-    #            print("Successfully read %d"%(file_count))
+#    with h5py.File(h5py_file_path,"a") as hdf5_record :
+    event_h = hdf5_record.create_dataset('event/record',dtype = 'float32', shape=(0,seq_length),maxshape = (None,seq_length))
+    event_length_h = hdf5_record.create_dataset('event/length',dtype = 'int32',shape=(0,),maxshape =(None,),chunks =True )
+    label_h = hdf5_record.create_dataset('label/record',dtype = 'int32',shape = (0,0),maxshape = (None,seq_length))
+    label_length_h = hdf5_record.create_dataset('label/length',dtype = 'int32',shape = (0,),maxshape = (None,))
+    event = biglist(data_handle = event_h)
+    event_length = biglist(data_handle = event_length_h)
+    label = biglist(data_handle = label_h)
+    label_length = biglist(data_handle = label_length_h)
+    count = 0
+    file_count = 0
+    for name in os.listdir(data_dir):
+        if name.endswith(".signal"):
+            file_pre = os.path.splitext(name)[0]
+            f_signal = read_signal(data_dir+name)
+            if len(f_signal)==0:
+                continue
+            try:
+                f_label = read_label(data_dir+file_pre+'.label',skip_start = 0,window_n = (k_mer-1)/2)
+            except:
+                sys.stdout.write("Read the label %s fail.Skipped."%(name))
+                continue
+
+#            if seq_length<max(f_label.length):
+#                print("Sequence length %d is samller than the max raw segment length %d, give a bigger seq_length"\
+#                                 %(seq_length,max(f_label.length)))
+#                l_indx = range(len(f_label.length))
+#                for_sort = zip(l_indx,f_label.length)
+#                sorted_array = sorted(for_sort,key = lambda x : x[1],reverse = True)
+#                index = sorted_array[0][0]
+#                plt.plot(f_signal[f_label.start[index]-100:f_label.start[index]+f_label.length[index]+100])
+#                continueholder_
+            tmp_event,tmp_event_length,tmp_label,tmp_label_length = read_raw(f_signal,f_label,seq_length)
+            event+=tmp_event
+            event_length+=tmp_event_length
+            label+=tmp_label
+            label_length+=tmp_label_length
+            del tmp_event
+            del tmp_event_length
+            del tmp_label
+            del tmp_label_length
+            count = len(event)
+            if file_count%10 ==0:
+                if FLAGS.max_reads_number is not None:
+                    sys.stdout.write("%d/%d events read.   \n" % (count,FLAGS.max_reads_number))
+                    if len(event)>FLAGS.max_reads_number:
+                        event.resize(FLAGS.max_reads_number)
+                        label.resize(FLAGS.max_reads_number)
+                        event_length.resize(FLAGS.max_reads_number)
+                        label_length.resize(FLAGS.max_reads_number)
+                        break
+                else:
+                    sys.stdout.write("%d lines read.   \n" % (count))
+            file_count+=1
+#            print("Successfully read %d"%(file_count))
     assert len(event) == len(event_length)
     assert len(label) == len(label_length)
     train_event = event
@@ -316,7 +309,7 @@ def read_signal(file_path,normalize = True):
             for x in line.split():
                 signal.append(np.float(x))
         signal = np.asarray(signal)
-    
+
     if len(signal)==0:
         return signal.tolist()
     if normalize:
@@ -370,13 +363,13 @@ def read_raw(raw_signal,raw_label,max_seq_length):
                 event_val.append(current_event)
                 event_length.append(current_length)
                 label_val.append(current_label)
-                label_length.append(len(current_label)) 
+                label_length.append(len(current_label))
             #Begin a new event-label
             current_event = raw_signal[current_start:current_start+segment_length]
             current_length = segment_length
             current_label = [current_base]
     return event_val,event_length,label_val,label_length
-            
+
 def padding(x,L,padding_list = None):
     """Padding the vector x to length L"""
     len_x = len(x)
@@ -390,7 +383,7 @@ def padding(x,L,padding_list = None):
         x.extend(padding_list[0:zero_n])
     return None
 def batch2sparse(label_batch):
-    """Transfer a batch of label to a sparse tensor"""    
+    """Transfer a batch of label to a sparse tensor"""
     values = []
     indices = []
     for batch_i,label_list in enumerate(label_batch[:,0]):
@@ -420,7 +413,7 @@ def base2ind(base,alphabet_n = 4,base_n = 1):
     if ord(base)<97:
         return Alphabeta.index(base)
     else:
-        return alphabeta.index(base)                   
+        return alphabeta.index(base)
 #
 def main():
 ### Input Test ###
@@ -431,8 +424,8 @@ def main():
 	    indxs,values,shape = label
 if __name__=='__main__':
     main()
-#    
-#     
-#            
+#
+#
+#
 #hdf5_record = h5py.File('/home/haotianteng/Documents/123/test2.hdf5',"w")
 #event_h = hdf5_record.create_dataset('test2',dtype = 'float32', shape=(0,300),maxshape = (None,300))

@@ -12,6 +12,7 @@ from cnn import getcnnfeature
 #from cnn import getcnnlogit
 #from rnn import rnn_layers
 from rnn import rnn_layers_one_direction
+import h5py
 import time,os
 
 def save_model():
@@ -73,7 +74,7 @@ def train():
     init = tf.global_variables_initializer()
     saver = tf.train.Saver()
     summary = tf.summary.merge_all()
-    
+
     sess = tf.Session(config = tf.ConfigProto(allow_soft_placement=True))
 #    save_model()
     if FLAGS.retrain==False:
@@ -83,8 +84,21 @@ def train():
         saver.restore(sess,tf.train.latest_checkpoint(FLAGS.log_dir+FLAGS.model_name))
         print("Model loaded finished, begin loading data. \n")
     summary_writer = tf.summary.FileWriter(FLAGS.log_dir+FLAGS.model_name+'/summary/', sess.graph)
-    
-    train_ds = read_raw_data_sets(FLAGS.data_dir,FLAGS.cache_dir,FLAGS.sequence_len,k_mer = FLAGS.k_mer)
+
+    h5py_file_path = FLAGS.cache_dir
+    if h5py_file_path is None:
+        h5py_file_path = tempfile.mkdtemp()+'/temp_record.hdf5'
+    else:
+        try:
+            os.remove(os.path.abspath(h5py_file_path))
+        except:
+            pass
+        if not os.path.isdir(os.path.dirname(os.path.abspath(h5py_file_path))):
+            os.mkdir(os.path.dirname(os.path.abspath(h5py_file_path)))
+
+    hdf5_record = h5py.File(h5py_file_path,"a")
+
+    train_ds = read_raw_data_sets(FLAGS.data_dir,hdf5_record,FLAGS.sequence_len,k_mer = FLAGS.k_mer)
     start=time.time()
     for i in range(FLAGS.max_steps):
         batch_x,seq_len,batch_y = train_ds.next_batch(FLAGS.batch_size)
@@ -106,8 +120,11 @@ def train():
             summary_writer.flush()
     global_step_val = tf.train.global_step(sess,global_step)
     print "Model %s saved."%(FLAGS.log_dir+FLAGS.model_name)
-    print "Reads number %d"%(train_ds.reads_n)       
+    print "Reads number %d"%(train_ds.reads_n)
     saver.save(sess,FLAGS.log_dir+FLAGS.model_name+'/final.ckpt',global_step=global_step_val)
+    hdf5_record.close()
+    os.remove(os.path.abspath(h5py_file_path))
+
 def run(args):
     global FLAGS
     FLAGS=args
@@ -123,12 +140,10 @@ if __name__ == "__main__":
         self.log_dir = '/media/haotianteng/Linux_ex/GVM_model'
         self.sequence_len = 300
         self.batch_size = 750
-        self.step_rate = 1e-3 
+        self.step_rate = 1e-3
         self.max_steps = 20000
         self.k_mer = 1
         self.model_name = 'test'
         self.retrain =False
     flags=Flags()
     run(flags)
-        
-        
