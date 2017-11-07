@@ -22,7 +22,7 @@ def inference(x,seq_length,training):
     feashape = cnn_feature.get_shape().as_list()
     ratio = FLAGS.segment_len/feashape[1]
 #    logits = rnn_layers(cnn_feature,seq_length/ratio,training,class_n = 5 )
-    logits = rnn_layers_one_direction(cnn_feature,seq_length/ratio,training,class_n = 5) 
+    logits = rnn_layers_one_direction(cnn_feature,seq_length/ratio,training,class_n = len(FLAGS.alphabet)+1)
 #    logits = getcnnlogit(cnn_feature)
     return logits,ratio
 
@@ -41,9 +41,9 @@ def sparse2dense(predict_val):
             pos_predict +=pre_counts[indx]
         predict_read.append(predict_read_temp)
     return predict_read,uniq_list
+
 def index2base(read):
-    base = ['A','C','G','T']
-    bpread = [base[x] for x in read]
+    bpread = [FLAGS.alphabet[x] for x in read]
     bpread = ''.join(x for x in bpread)
     return bpread
 
@@ -54,17 +54,20 @@ def path_prob(logits):
     return prob_logits
 
 def qs(consensus,consensus_qs,output_standard = 'phred+33'):
+    max_ind_bases = len(FLAGS.alphabet)-1
     sort_ind = np.argsort(consensus,axis = 0)
     L = consensus.shape[1]
     sorted_consensus = consensus[sort_ind,np.arange(L)[np.newaxis,:]]
     sorted_consensus_qs = consensus_qs[sort_ind,np.arange(L)[np.newaxis,:]]
-    quality_score = 10* ( np.log10((sorted_consensus[3,:]+1)/(sorted_consensus[2,:]+1))) + sorted_consensus_qs[3,:]/sorted_consensus[3,:]/np.log(10)
+
+    quality_score = 10* (np.log10((sorted_consensus[max_ind_bases,:] +1) / (sorted_consensus[max_ind_bases-1,:] +1))) + sorted_consensus_qs[max_ind_bases,:] / sorted_consensus[max_ind_bases,:] / np.log(10)
+
     if output_standard == 'number':
         return quality_score.astype(int)
     elif output_standard == 'phred+33':
         q_string = [chr(x+33) for x in quality_score.astype(int)]
         return ''.join(q_string)
-    
+
 def write_output(segments,consensus,time_list,file_pre,suffix='fasta',seg_q_score=None,q_score=None):
     """
     seg_q_score: A length seg_num string list. Quality score for the segments.
@@ -92,8 +95,8 @@ def write_output(segments,consensus,time_list,file_pre,suffix='fasta',seg_q_scor
         total_time = time.time()-start_time
         output_time=total_time-assembly_time
         assembly_time-=basecall_time
-        basecall_time-=reading_time                       
-        total_len = len(consensus)                        
+        basecall_time-=reading_time
+        total_len = len(consensus)
         total_time=time.time()-start_time
         out_meta.write("# Reading Basecalling assembly output total rate(bp/s)\n" )
         out_meta.write("%5.3f %5.3f %5.3f %5.3f %5.3f %5.3f\n"%(reading_time,basecall_time,assembly_time,output_time,total_time,total_len/total_time))
@@ -101,7 +104,7 @@ def write_output(segments,consensus,time_list,file_pre,suffix='fasta',seg_q_scor
         out_meta.write("%d %d %d %d %d\n"%(total_len,FLAGS.batch_size,FLAGS.segment_len,FLAGS.jump,FLAGS.start))
         out_meta.write("# input_name model_name\n")
         out_meta.write("%s %s\n"%(FLAGS.input,FLAGS.model))
-    
+
 def evaluation():
     x = tf.placeholder(tf.float32,shape = [FLAGS.batch_size,FLAGS.segment_len])
     seq_length = tf.placeholder(tf.int32, shape = [FLAGS.batch_size])
@@ -122,7 +125,7 @@ def evaluation():
      else:
          file_list = [os.path.basename(FLAGS.input)]
          file_dir = os.path.abspath(os.path.join(FLAGS.input,os.path.pardir))
-     #Make output folder.    
+     #Make output folder.
      if not os.path.exists(FLAGS.output):
          os.makedirs(FLAGS.output)
      if not os.path.exists(os.path.join(FLAGS.output,'segments')):
@@ -131,7 +134,7 @@ def evaluation():
          os.makedirs(os.path.join(FLAGS.output,'result'))
      if not os.path.exists(os.path.join(FLAGS.output,'meta')):
          os.makedirs(os.path.join(FLAGS.output,'meta'))
-     ##    
+     ##
      for name in file_list:
          start_time = time.time()
          if not name.endswith('.signal'):
@@ -156,7 +159,7 @@ def evaluation():
              predict_read,unique = sparse2dense(predict_val)
              predict_read = predict_read[0]
              unique = unique[0]
-             
+
              if FLAGS.extension=='fastq':
                  logits_prob = logits_prob[unique]
              if i+FLAGS.batch_size>reads_n:
@@ -170,10 +173,10 @@ def evaluation():
          basecall_time=time.time()-start_time
          bpreads = [index2base(read) for read in reads]
          if FLAGS.extension == 'fastq':
-             consensus,qs_consensus = simple_assembly_qs(bpreads,qs_list)
+             consensus,qs_consensus = simple_assembly_qs(bpreads,qs_list,FLAGS.alphabet)
              qs_string = qs(consensus,qs_consensus)
          else:
-             consensus = simple_assembly(bpreads) 
+             consensus = simple_assembly(bpreads,FLAGS.alphabet)
          c_bpread = index2base(np.argmax(consensus,axis = 0))
          np.set_printoptions(threshold=np.nan)
          assembly_time=time.time()-start_time
@@ -196,6 +199,8 @@ def run(args):
     with open(path_meta,'a+') as out_meta:
         out_meta.write("# Wall_time Sys_time User_time Cpu_time\n")
         out_meta.write("%5.3f %5.3f %5.3f %5.3f\n" %(time_dict['real'],time_dict['sys'],time_dict['user'],time_dict['sys']+time_dict['user']))
+
+
 if __name__=="__main__":
     parser=argparse.ArgumentParser(prog='chiron',description='A deep neural network basecaller.')
     parser.add_argument('-i','--input',default='example_data/output/raw', help="File path or Folder path to the fast5 file.")
@@ -207,5 +212,6 @@ if __name__=="__main__":
     parser.add_argument('-j','--jump',type = int,default = 30,help = "Step size for segment")
     parser.add_argument('-t','--threads',type = int,default = 0,help = "Threads number")
     parser.add_argument('-e','--extension',default = 'fastq',help = "Output file extension.")
+    parser.add_argument('-a','--alphabet',type=str,default='ATCG',help="Type of bases in the data. Default: ATCG")
     args=parser.parse_args(sys.argv[1:])
     run(args)

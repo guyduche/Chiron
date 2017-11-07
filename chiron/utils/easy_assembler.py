@@ -33,7 +33,7 @@ def string2list(input_v,base_type):
     result = list()
     for item in input_v:
         result.append(base_dict[item])
-    return result        
+    return result
 def group_consecutives(vector,step=1):
     group=list()
     group_list = list()
@@ -51,7 +51,7 @@ def group_consecutives(vector,step=1):
 def section_decoding(logits,blank_thres=0.6,base_type=0):
     """Implemented the decoding method described in ftp://ftp.idsia.ch/pub/juergen/icml2006.pdf
     Find the best path between the section that divided by blank logits < 0.9
-    
+
     logits: [batch_size,seg_length,neucloe_type+1]
     base_type: 0:dna 1:methylation 2:rna
     """
@@ -63,10 +63,10 @@ def section_decoding(logits,blank_thres=0.6,base_type=0):
     bpreads = list()
     bpread = list()
     for batch_i in range(batch_size):
-        
-        
+
+
         group_list = group_consecutives(np.where(mask[batch_i,:])[0])
-        
+
         bpread=[]
         for group in group_list:
             if len(group)==0:
@@ -78,7 +78,7 @@ def section_decoding(logits,blank_thres=0.6,base_type=0):
             bpread+=most_prob_path
         bpreads.append(list2string(mapping(bpread),base_type = base_type))
     return(bpreads)
-        
+
 def best_path(logits,base_type):
     """Enumerate decoder,*slow*"""
     T,base_num = logits.shape
@@ -116,7 +116,7 @@ def mc_path(logits,base_type,sample_n = 300):
     for i in range(1,base_num-1):
         interval[:,i] = interval[:,i-1]+prob[:,i]
     interval[:,4] = 1
-    
+
     sample_index = np.zeros((sample_n,T))
     sample = np.random.random((sample_n,T))
     for j in range(T):
@@ -159,7 +159,7 @@ def mc_decoding(logits,base_type,sample_n = 300):
     for i in range(1,base_num-1):
         interval[:,:,i] = interval[:,:,i-1]+prob[:,:,i]
     interval[:,:,4] = 1
-    
+
     sample_index = np.zeros((sample_n,T))
     for i in range(batch_size):
         print i
@@ -183,14 +183,14 @@ def mc_decoding(logits,base_type,sample_n = 300):
 ###############################################################################
 
 #########################Simple assembly method################################
-def simple_assembly(bpreads):
-    concensus = np.zeros([4,1000])
+def simple_assembly(bpreads, alphabet):
+    concensus = np.zeros([len(alphabet),1000])
     pos = 0
     length = 0
     census_len = 1000
     for indx,bpread in enumerate(bpreads):
         if indx==0:
-            add_count(concensus,0,bpread)
+            add_count(concensus,0,bpread,alphabet)
             continue
         d = difflib.SequenceMatcher(None,bpreads[indx-1],bpread)
         match_block = max(d.get_matching_blocks(),key = lambda x:x[2])
@@ -198,31 +198,30 @@ def simple_assembly(bpreads):
         if disp+pos+len(bpreads[indx])>census_len:
             concensus = np.lib.pad(concensus,((0,0),(0,1000)),mode = 'constant',constant_values = 0)
             census_len +=1000
-        add_count(concensus,pos+disp,bpreads[indx])
+        add_count(concensus,pos+disp,bpreads[indx],alphabet)
         pos+=disp
         length = max(length,pos+len(bpreads[indx]))
     return concensus[:,:length]
-    
-def add_count(concensus,start_indx,segment):
-    base_dict = {'A':0,'C':1,'G':2,'T':3,'a':0,'c':1,'g':2,'t':3}
+
+def add_count(concensus,start_indx,segment,alphabet):
     if start_indx<0:
         segment = segment[-start_indx:]
         start_indx = 0
     for i,base in enumerate(segment):
-        concensus[base_dict[base]][start_indx+i] += 1
+        concensus[alphabet.index(base)][start_indx+i] += 1
 ###############################################################################
 
 #########################Simple assembly method with quality score################################
-def simple_assembly_qs(bpreads,qs_list):
-    concensus = np.zeros([4,1000])
-    concensus_qs = np.zeros([4,1000])
+def simple_assembly_qs(bpreads,qs_list,alphabet):
+    concensus = np.zeros([len(alphabet),1000])
+    concensus_qs = np.zeros([len(alphabet),1000])
     pos = 0
     length = 0
     census_len = 1000
     assert len(bpreads)==len(qs_list)
     for indx,bpread in enumerate(bpreads):
         if indx==0:
-            add_count_qs(concensus,concensus_qs,0,bpread,qs_list[indx])
+            add_count_qs(concensus,concensus_qs,0,bpread,qs_list[indx],alphabet)
             continue
         d = difflib.SequenceMatcher(None,bpreads[indx-1],bpread)
         match_block = max(d.get_matching_blocks(),key = lambda x:x[2])
@@ -231,19 +230,18 @@ def simple_assembly_qs(bpreads,qs_list):
             concensus = np.lib.pad(concensus,((0,0),(0,1000)),mode = 'constant',constant_values = 0)
             concensus_qs = np.lib.pad(concensus_qs,((0,0),(0,1000)),mode = 'constant',constant_values = 0)
             census_len +=1000
-        add_count_qs(concensus,concensus_qs,pos+disp,bpread,qs_list[indx])
+        add_count_qs(concensus,concensus_qs,pos+disp,bpread,qs_list[indx],alphabet)
         pos+=disp
         length = max(length,pos+len(bpread))
     return concensus[:,:length],concensus_qs[:,:length]
-    
-def add_count_qs(concensus,concensus_qs,start_indx,segment,qs):
-    base_dict = {'A':0,'C':1,'G':2,'T':3,'a':0,'c':1,'g':2,'t':3}
+
+def add_count_qs(concensus,concensus_qs,start_indx,segment,qs,alphabet):
     if start_indx<0:
         segment = segment[-start_indx:]
         start_indx = 0
     for i,base in enumerate(segment):
-        concensus[base_dict[base]][start_indx+i] += 1
-        concensus_qs[base_dict[base]][start_indx+i] += qs[0]
+        concensus[alphabet.index(base)][start_indx+i] += 1
+        concensus_qs[alphabet.index(base)][start_indx+i] += qs[0]
 ###############################################################################
 
 def main():

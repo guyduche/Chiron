@@ -19,7 +19,7 @@ def evaluation(args):
     chiron_eval.run(args)
 def export(args):
     raw.run(args)
-    
+
 def main(arguments=sys.argv[1:]):
     parser=argparse.ArgumentParser(prog='chiron',description='A deep neural network basecaller.')
     subparsers = parser.add_subparsers(title='sub command',help='sub command help')
@@ -35,6 +35,7 @@ def main(arguments=sys.argv[1:]):
     parser_call.add_argument('-j','--jump',type = int,default = 30,help = "Step size for segment")
     parser_call.add_argument('-t','--threads',type = int,default = 0,help = "Threads number")
     parser_call.add_argument('-e','--extension',default = 'fastq',help = "Output file type.")
+    parser_call.add_argument('-a','--alphabet',type=str,default='ATCG',help="Type of bases in the data. Default: ATCG")
     parser_call.set_defaults(func=evaluation)
 
     #parser for 'extract' command
@@ -44,7 +45,7 @@ def main(arguments=sys.argv[1:]):
     parser.add_argument('--basecall_group',default = 'Basecall_1D_000',help = 'Basecall group Nanoraw resquiggle into. Default is Basecall_1D_000')
     parser.add_argument('--basecall_subgroup',default = 'BaseCalled_template',help = 'Basecall subgroup Nanoraw resquiggle into. Default is BaseCalled_template')
     parser_export.set_defaults(func=export)
-    
+
     #parser for 'train' command
     parser_train=subparsers.add_parser('train',description='Model training',help='Train a model.')
     parser_train.add_argument('-i','--data_dir',required=True,help="Folder containing the labelled data.")
@@ -55,12 +56,13 @@ def main(arguments=sys.argv[1:]):
     parser_train.add_argument('-l','--sequence_len',type=int,default=300,help="Segment length to be divided into.")
     parser_train.add_argument('-b','--batch_size',type=int,default=300,help="Batch size to train, large batch size require more ram but give faster training speed.")
     parser_train.add_argument('-m','--max_steps',type=int,default=20000,help="Maximum training steps conducted.")
-    parser_train.add_argument('-r','--step_rate',type=float,default=1e-3,help="Learning rate used for optimiztion algorithm.")
+    parser_train.add_argument('-r','--step_rate',type=float,default=1e-3,help="Learning rate used for optimization algorithm.")
     parser_train.add_argument('-k','--k_mer',type=int,default=1,help="Output k-mer size.")
+    parser_train.add_argument('-a','--alphabet',type=str,default='ATCG',help="Type of bases in the data. Default: ATCG")
     parser_train.set_defaults(func=chiron_rcnn_train.run)
-    
+
     args=parser.parse_args(arguments)
     args.func(args)
 if __name__=='__main__':
     print(sys.argv[1:])
-    main()    
+    main()

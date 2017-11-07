@@ -137,11 +137,11 @@ class DataSet(object):
 
     def read_into_memory(self, index):
         event = np.asarray(zip([self._event[i] for i in index],[self._event_length[i] for i in index]))
-	if not self.for_eval:
-        	label = np.asarray(zip([self._label[i] for i in index],[self._label_length[i] for i in index]))
+        if not self.for_eval:
+            label = np.asarray(zip([self._label[i] for i in index],[self._label_length[i] for i in index]))
         else:
-		label = []
-	return event,label
+            label = []
+        return event,label
 
     def next_batch(self, batch_size,shuffle = True):
         """Return next batch in batch_size from the data set.
@@ -191,7 +191,7 @@ class DataSet(object):
         seq_length = event_batch[:,1].astype(np.int32)
         return np.vstack(event_batch[:,0]).astype(np.float32),seq_length,label_batch
 
-def read_data_for_eval(file_path,start_index=0,step = 20,seg_length = 200):
+def read_data_for_eval(file_path,start_index=0,step = 30,seg_length = 200):
     '''
     Input Args:
         file_path: file path to a signal file.
@@ -235,7 +235,7 @@ def read_data_for_eval(file_path,start_index=0,step = 20,seg_length = 200):
 #    label_length = biglist(data_handle = label_length_h,length = label_len,cache = True)
 #    return DataSet(event = event,event_length = event_length,label = label,label_length = label_length)
 
-def read_raw_data_sets(data_dir,hdf5_record,seq_length = 300,k_mer = 1,max_reads_num = FLAGS.max_reads_number):
+def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,max_reads_num = FLAGS.max_reads_number):
     ###Read from raw data
 #    with h5py.File(h5py_file_path,"a") as hdf5_record :
     event_h = hdf5_record.create_dataset('event/record',dtype = 'float32', shape=(0,seq_length),maxshape = (None,seq_length))
@@ -255,7 +255,7 @@ def read_raw_data_sets(data_dir,hdf5_record,seq_length = 300,k_mer = 1,max_reads
             if len(f_signal)==0:
                 continue
             try:
-                f_label = read_label(data_dir+file_pre+'.label',skip_start = 0,window_n = (k_mer-1)/2)
+                f_label = read_label(data_dir+file_pre+'.label', 0, (k_mer-1)/2, alphabet)
             except:
                 sys.stdout.write("Read the label %s fail.Skipped."%(name))
                 continue
@@ -316,7 +316,7 @@ def read_signal(file_path,normalize = True):
         signal = (signal - signal.mean()) / signal.std()
     return signal.tolist()
 
-def read_label(file_path,skip_start=10,window_n = 0):
+def read_label(file_path,skip_start,window_n, alphabet):
     f_h = open(file_path,'r')
     start = list()
     length = list()
@@ -327,7 +327,7 @@ def read_label(file_path,skip_start=10,window_n = 0):
         skip_start = window_n
     for line in f_h:
         record = line.split()
-        all_base.append(base2ind(record[2]))
+        all_base.append(base2ind(record[2], alphabet))
     f_h.seek(0,0)#Back to the start
     file_len = len(all_base)
     for count,line in enumerate(f_h):
@@ -394,26 +394,12 @@ def batch2sparse(label_batch):
             values.append(label)
     shape = [len(label_batch),max(label_batch[:,1])]
     return (indices,values,shape)
-def base2ind(base,alphabet_n = 4,base_n = 1):
-    """base to 1-hot vector,
-    Input Args:
-        base: current base,can be AGCT, or AGCTX for methylation.
-        alphabet_n: can be 4 or 5, related to normal DNA or methylation call.
-        """
-    if alphabet_n == 4:
-        Alphabeta = ['A','C','G','T']
-        alphabeta = ['a','c','g','t']
-    elif alphabet_n==5:
-        Alphabeta = ['A','C','G','T','X']
-        alphabeta = ['a','c','g','t','x']
-    else:
-        raise ValueError('Alphabet number should be 4 or 5.')
-    if base.isdigit():
-        return int(base)/256
-    if ord(base)<97:
-        return Alphabeta.index(base)
-    else:
-        return alphabeta.index(base)
+
+def base2ind(base, alphabet):
+    if len(base) == 5:
+        base = base[0]
+    return alphabet.index(base.upper())
+
 #
 def main():
 ### Input Test ###

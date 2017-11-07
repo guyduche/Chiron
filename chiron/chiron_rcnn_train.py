@@ -14,6 +14,7 @@ from cnn import getcnnfeature
 from rnn import rnn_layers_one_direction
 import h5py
 import time,os
+import tempfile
 
 def save_model():
     copy_tree(os.path.dirname(os.path.abspath(__file__)),FLAGS.log_dir+FLAGS.model_name+'/model')
@@ -22,7 +23,7 @@ def inference(x,seq_length,training):
     feashape = cnn_feature.get_shape().as_list()
     ratio = FLAGS.sequence_len/feashape[1]
 #    logits = rnn_layers(cnn_feature,seq_length/ratio,training,class_n = 4**FLAGS.k_mer+1 )
-    logits = rnn_layers_one_direction(cnn_feature,seq_length/ratio,training,class_n = 4**FLAGS.k_mer+1)
+    logits = rnn_layers_one_direction(cnn_feature,seq_length/ratio,training,class_n = len(FLAGS.alphabet)**FLAGS.k_mer+1)
 #    logits = getcnnlogit(cnn_feature)
     return logits,ratio
 
@@ -98,7 +99,7 @@ def train():
 
     hdf5_record = h5py.File(h5py_file_path,"a")
 
-    train_ds = read_raw_data_sets(FLAGS.data_dir,hdf5_record,FLAGS.sequence_len,k_mer = FLAGS.k_mer)
+    train_ds = read_raw_data_sets(FLAGS.data_dir,hdf5_record,FLAGS.sequence_len,k_mer = FLAGS.k_mer, alphabet = FLAGS.alphabet)
     start=time.time()
     for i in range(FLAGS.max_steps):
         batch_x,seq_len,batch_y = train_ds.next_batch(FLAGS.batch_size)
@@ -130,6 +131,7 @@ def run(args):
     FLAGS=args
     FLAGS.data_dir = FLAGS.data_dir + os.path.sep
     FLAGS.log_dir = FLAGS.log_dir + os.path.sep
+    FLAGS.alphabet = FLAGS.alphabet.upper()
     train()
 
 if __name__ == "__main__":
