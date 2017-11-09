@@ -99,7 +99,7 @@ def train():
 
     hdf5_record = h5py.File(h5py_file_path,"a")
 
-    train_ds = read_raw_data_sets(FLAGS.data_dir,hdf5_record,FLAGS.sequence_len,k_mer = FLAGS.k_mer, alphabet = FLAGS.alphabet)
+    train_ds = read_raw_data_sets(FLAGS.data_dir,hdf5_record,FLAGS.sequence_len,FLAGS.k_mer,FLAGS.alphabet,FLAGS.sliding_window)
     start=time.time()
     for i in range(FLAGS.max_steps):
         batch_x,seq_len,batch_y = train_ds.next_batch(FLAGS.batch_size)

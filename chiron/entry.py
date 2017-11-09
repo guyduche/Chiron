@@ -59,6 +59,7 @@ def main(arguments=sys.argv[1:]):
     parser_train.add_argument('-r','--step_rate',type=float,default=1e-3,help="Learning rate used for optimization algorithm.")
     parser_train.add_argument('-k','--k_mer',type=int,default=1,help="Output k-mer size.")
     parser_train.add_argument('-a','--alphabet',type=str,default='ATCG',help="Type of bases in the data. Default: ATCG")
+    parser_train.add_argument('-s','--sliding_window',type=bool,default=False,help="Artificially augment the data used for training by reading the input using a sliding window.")
     parser_train.set_defaults(func=chiron_rcnn_train.run)
 
     args=parser.parse_args(arguments)
