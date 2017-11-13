@@ -349,43 +349,44 @@ def read_raw_sliding(raw_signal,raw_label,max_seq_length,jump):
     event_length = []
 
     len_signal = len(raw_signal)
-    start_label = raw_label.start[0]
+    first_label_signal = raw_label.start[0]
+    start_label = 0
     end = 0
 
-    for indx in range(start_label, len_signal, jump):
-        if indx + max_seq_length > len_signal:
-            indx = len_signal - max_seq_length
-            end = 1
+    if len_signal > max_seq_length:
+        for indx in range(first_label_signal, len_signal, jump):
+            if indx + max_seq_length > len_signal:
+                indx = len_signal - max_seq_length
+                end = 1
 
-        segment_event = raw_signal[indx : indx + max_seq_length]
-        segment_label = []
-
-        for indw in range(start_label, len(raw_label.end)):
+            segment_event = raw_signal[indx : indx + max_seq_length]
+            segment_label = []
             tmp_start_label = start_label
 
-            if raw_label.start[indw] + max_seq_length < raw_label.end[indw]:
-                break
-
-            if raw_label.start[indw] >= indx:
-                segment_label.append(raw_label.base[indw])
-
-                if raw_label.start[indw] < start_label + jump:
-                    tmp_start_label = raw_label.start[indw]
-
-                if raw_label.end[indw] >= indx + max_seq_length:
-                    tmp_start_label = start_label
+            for indw in range(start_label, len(raw_label.end)):
+                if raw_label.start[indw] + max_seq_length < raw_label.end[indw]:
                     break
 
-        len_segment_label = len(segment_label)
+                if raw_label.start[indw] >= indx:
+                    segment_label.append(raw_label.base[indw])
 
-        if len_segment_label >= 3:
-            event_val.append(segment_event)
-            event_length.append(max_seq_length)
-            label_val.append(segment_label)
-            label_length.append(len_segment_label)
+                    if raw_label.start[indw] < raw_label.start[start_label] + jump:
+                        tmp_start_label = indw
 
-        if end:
-            break
+                    if raw_label.end[indw] >= indx + max_seq_length:
+                        start_label = tmp_start_label
+                        break
+
+            len_segment_label = len(segment_label)
+
+            if len_segment_label >= 3:
+                event_val.append(segment_event)
+                event_length.append(max_seq_length)
+                label_val.append(segment_label)
+                label_length.append(len_segment_label)
+
+            if end:
+                break
 
     return event_val, event_length, label_val, label_length
 
@@ -417,7 +418,6 @@ def read_raw(raw_signal,raw_label,max_seq_length):
             current_event = raw_signal[current_start:current_end]
             current_length = segment_length
             current_label = [current_base]
-
     return event_val,event_length,label_val,label_length
 
 def padding(x,L,padding_list = None):
