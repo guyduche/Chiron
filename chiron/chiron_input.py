@@ -9,7 +9,7 @@ import numpy as np
 import os,collections,sys
 import h5py
 import tempfile
-raw_labels = collections.namedtuple('raw_labels',['start','length','base'])
+raw_labels = collections.namedtuple('raw_labels',['start','end','base'])
 
 # np.random.seed(42)
 
@@ -235,7 +235,7 @@ def read_data_for_eval(file_path,start_index=0,step = 30,seg_length = 200):
 #    label_length = biglist(data_handle = label_length_h,length = label_len,cache = True)
 #    return DataSet(event = event,event_length = event_length,label = label,label_length = label_length)
 
-def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,sliding_window,max_reads_num = FLAGS.max_reads_number):
+def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,jump,max_reads_num = FLAGS.max_reads_number):
     ###Read from raw data
 #    with h5py.File(h5py_file_path,"a") as hdf5_record :
     event_h = hdf5_record.create_dataset('event/record',dtype = 'float32', shape=(0,seq_length),maxshape = (None,seq_length))
@@ -255,7 +255,7 @@ def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,sliding_wi
             if len(f_signal)==0:
                 continue
             try:
-                f_label = read_label(data_dir+file_pre+'.label', 0, (k_mer-1)/2, alphabet)
+                f_label = read_label(data_dir+file_pre+'.label', 0, alphabet)
             except:
                 sys.stdout.write("Read the label %s fail.Skipped."%(name))
                 continue
@@ -269,8 +269,8 @@ def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,sliding_wi
 #                index = sorted_array[0][0]
 #                plt.plot(f_signal[f_label.start[index]-100:f_label.start[index]+f_label.length[index]+100])
 #                continueholder_
-            if sliding_window == True:
-                tmp_event,tmp_event_length,tmp_label,tmp_label_length = read_raw_sliding(f_signal,f_label,seq_length)
+            if jump:
+                tmp_event,tmp_event_length,tmp_label,tmp_label_length = read_raw_sliding(f_signal,f_label,seq_length,jump)
             else:
                 tmp_event,tmp_event_length,tmp_label,tmp_label_length = read_raw(f_signal,f_label,seq_length)
 
@@ -320,71 +320,74 @@ def read_signal(file_path,normalize = True):
         signal = (signal - signal.mean()) / signal.std()
     return signal.tolist()
 
-def read_label(file_path,skip_start,window_n, alphabet):
-    f_h = open(file_path,'r')
-    start = list()
-    length = list()
-    base = list()
-    all_base = list()
-    count = 0
-    if skip_start < window_n:
-        skip_start = window_n
-    for line in f_h:
-        record = line.split()
-        all_base.append(base2ind(record[2], alphabet))
-    f_h.seek(0,0)#Back to the start
-    file_len = len(all_base)
-    for count,line in enumerate(f_h):
-        record = line.split()
-        if count<skip_start or count>(file_len-skip_start-1):
-            continue
-        start.append(int(record[0]))
-        length.append(int(record[1])-int(record[0]))
-        k_mer = 0
-        for i in range(window_n*2+1):
-            k_mer = k_mer*4 + all_base[count+i-window_n]
-        base.append(k_mer)
-    return raw_labels(start=start,length=length,base=base)
+def base2ind(base, alphabet):
+    if len(base) == 5:
+        base = base[0]
+    return alphabet.index(base.upper())
 
-def read_raw_sliding(raw_signal,raw_label,max_seq_length):
+def read_label(file_path, skip_start, alphabet):
+    start = []
+    end = []
+    base = []
+    count = 0
+
+    with open(file_path,'r') as f_h:
+        for count, line in enumerate(f_h):
+            if count < skip_start:
+                continue
+            record = line.split()
+            start.append(int(record[0]))
+            end.append(int(record[1]))
+            base.append(base2ind(record[2], alphabet))
+
+    return raw_labels(start=start,end=end,base=base)
+
+def read_raw_sliding(raw_signal,raw_label,max_seq_length,jump):
     label_val = []
     label_length = []
     event_val = []
     event_length = []
-    len_label = len(raw_label.length)
+
+    len_signal = len(raw_signal)
+    start_label = raw_label.start[0]
     end = 0
 
-    for indx in range(0, len_label):
-        segment_length = 0
+    for indx in range(start_label, len_signal, jump):
+        if indx + max_seq_length > len_signal:
+            indx = len_signal - max_seq_length
+            end = 1
+
+        segment_event = raw_signal[indx : indx + max_seq_length]
         segment_label = []
-        segment_event = []
 
-        for indw in range(indx, len_label):
-            current_start = raw_label.start[indw]
-            current_base = raw_label.base[indw]
-            current_length = raw_label.length[indw]
+        for indw in range(start_label, len(raw_label.end)):
+            tmp_start_label = start_label
 
-            if indw == len_label - 1:
-                end = 1
-
-            if segment_length + current_length < max_seq_length:
-                segment_event += raw_signal[current_start : current_start + current_length]
-                segment_label.append(current_base)
-                segment_length += current_length
-            else:
-                # Save current event and label, conduct a quality control step of the label.
-                if segment_length > (max_seq_length/2) and len(segment_label) > 5:
-                    padding(segment_event,max_seq_length,raw_signal[current_start:current_start+current_length])
-                    event_val.append(segment_event)
-                    event_length.append(segment_length)
-                    label_val.append(segment_label)
-                    label_length.append(len(segment_label))
+            if raw_label.start[indw] + max_seq_length < raw_label.end[indw]:
                 break
+
+            if raw_label.start[indw] >= indx:
+                segment_label.append(raw_label.base[indw])
+
+                if raw_label.start[indw] < start_label + jump:
+                    tmp_start_label = raw_label.start[indw]
+
+                if raw_label.end[indw] >= indx + max_seq_length:
+                    tmp_start_label = start_label
+                    break
+
+        len_segment_label = len(segment_label)
+
+        if len_segment_label >= 3:
+            event_val.append(segment_event)
+            event_length.append(max_seq_length)
+            label_val.append(segment_label)
+            label_length.append(len_segment_label)
 
         if end:
             break
 
-    return event_val,event_length,label_val,label_length
+    return event_val, event_length, label_val, label_length
 
 def read_raw(raw_signal,raw_label,max_seq_length):
     label_val = list()
@@ -394,25 +397,27 @@ def read_raw(raw_signal,raw_label,max_seq_length):
     current_length = 0
     current_label = []
     current_event = []
-    for indx,segment_length in enumerate(raw_label.length):
-        current_start = raw_label.start[indx]
+    for indx,current_start in enumerate(raw_label.start):
+        current_end = raw_label.end[indx]
         current_base = raw_label.base[indx]
+        segment_length = current_end - current_start
         if current_length+segment_length<max_seq_length:
-            current_event += raw_signal[current_start:current_start+segment_length]
+            current_event += raw_signal[current_start:current_end]
             current_label.append(current_base)
             current_length+= segment_length
         else:
             #Save current event and label, conduct a quality controle step of the label.
-            if current_length>(max_seq_length/2) and len(current_label)>5:
-                padding(current_event,max_seq_length,raw_signal[current_start:current_start+segment_length])
+            if current_length>(max_seq_length/2) and len(current_label)>3:
+                padding(current_event,max_seq_length,raw_signal[current_end:current_end+max_seq_length])
                 event_val.append(current_event)
                 event_length.append(current_length)
                 label_val.append(current_label)
                 label_length.append(len(current_label))
             #Begin a new event-label
-            current_event = raw_signal[current_start:current_start+segment_length]
+            current_event = raw_signal[current_start:current_end]
             current_length = segment_length
             current_label = [current_base]
+
     return event_val,event_length,label_val,label_length
 
 def padding(x,L,padding_list = None):
@@ -439,11 +444,6 @@ def batch2sparse(label_batch):
             values.append(label)
     shape = [len(label_batch),max(label_batch[:,1])]
     return (indices,values,shape)
-
-def base2ind(base, alphabet):
-    if len(base) == 5:
-        base = base[0]
-    return alphabet.index(base.upper())
 
 #
 def main():

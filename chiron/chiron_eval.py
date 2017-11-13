@@ -117,72 +117,72 @@ def evaluation():
     config=tf.ConfigProto(allow_soft_placement=True,intra_op_parallelism_threads=FLAGS.threads,inter_op_parallelism_threads=FLAGS.threads)
     config.gpu_options.allow_growth = True
     with tf.Session(config = config) as sess:
-     saver = tf.train.Saver()
-     saver.restore(sess,tf.train.latest_checkpoint(FLAGS.model))
-     if os.path.isdir(FLAGS.input):
-         file_list = os.listdir(FLAGS.input)
-         file_dir = FLAGS.input
-     else:
-         file_list = [os.path.basename(FLAGS.input)]
-         file_dir = os.path.abspath(os.path.join(FLAGS.input,os.path.pardir))
-     #Make output folder.
-     if not os.path.exists(FLAGS.output):
-         os.makedirs(FLAGS.output)
-     if not os.path.exists(os.path.join(FLAGS.output,'segments')):
-         os.makedirs(os.path.join(FLAGS.output,'segments'))
-     if not os.path.exists(os.path.join(FLAGS.output,'result')):
-         os.makedirs(os.path.join(FLAGS.output,'result'))
-     if not os.path.exists(os.path.join(FLAGS.output,'meta')):
-         os.makedirs(os.path.join(FLAGS.output,'meta'))
-     ##
-     for name in file_list:
-         start_time = time.time()
-         if not name.endswith('.signal'):
-             continue
-         file_pre = os.path.splitext(name)[0]
-         input_path = os.path.join(file_dir,name)
-         eval_data = read_data_for_eval(input_path,FLAGS.start,seg_length = FLAGS.segment_len,step = FLAGS.jump)
-         reads_n = eval_data.reads_n
-         reading_time=time.time()-start_time
-         reads = list()
-         qs_list = np.empty((0,1),dtype = np.float)
-         qs_string = None
-         for i in range(0,reads_n,FLAGS.batch_size):
-             batch_x,seq_len,_ = eval_data.next_batch(FLAGS.batch_size,shuffle = False)
-             batch_x=np.pad(batch_x,((0,FLAGS.batch_size-len(batch_x)),(0,0)),mode='constant')
-             seq_len=np.pad(seq_len,((0,FLAGS.batch_size-len(seq_len))),mode='constant')
-             feed_dict = {x:batch_x,seq_length:seq_len,training:False}
-             if FLAGS.extension=='fastq':
-                 predict_val,logits_prob= sess.run([predict,prob],feed_dict = feed_dict)
-             else:
-                 predict_val= sess.run(predict,feed_dict = feed_dict)
-             predict_read,unique = sparse2dense(predict_val)
-             predict_read = predict_read[0]
-             unique = unique[0]
+        saver = tf.train.Saver()
+        saver.restore(sess,tf.train.latest_checkpoint(FLAGS.model))
+        if os.path.isdir(FLAGS.input):
+            file_list = os.listdir(FLAGS.input)
+            file_dir = FLAGS.input
+        else:
+            file_list = [os.path.basename(FLAGS.input)]
+            file_dir = os.path.abspath(os.path.join(FLAGS.input,os.path.pardir))
+        #Make output folder.
+        if not os.path.exists(FLAGS.output):
+            os.makedirs(FLAGS.output)
+        if not os.path.exists(os.path.join(FLAGS.output,'segments')):
+            os.makedirs(os.path.join(FLAGS.output,'segments'))
+        if not os.path.exists(os.path.join(FLAGS.output,'result')):
+            os.makedirs(os.path.join(FLAGS.output,'result'))
+        if not os.path.exists(os.path.join(FLAGS.output,'meta')):
+            os.makedirs(os.path.join(FLAGS.output,'meta'))
 
-             if FLAGS.extension=='fastq':
-                 logits_prob = logits_prob[unique]
-             if i+FLAGS.batch_size>reads_n:
-                 predict_read = predict_read[:reads_n-i]
-                 if FLAGS.extension == 'fastq':
-                     logits_prob = logits_prob[:reads_n-i]
-             if FLAGS.extension == 'fastq':
-                 qs_list = np.concatenate((qs_list,logits_prob))
-             reads+=predict_read
-         print("Segment reads base calling finished, begin to assembly. %5.2f seconds"%(time.time()-start_time))
-         basecall_time=time.time()-start_time
-         bpreads = [index2base(read) for read in reads]
-         if FLAGS.extension == 'fastq':
-             consensus,qs_consensus = simple_assembly_qs(bpreads,qs_list,FLAGS.alphabet)
-             qs_string = qs(consensus,qs_consensus)
-         else:
-             consensus = simple_assembly(bpreads,FLAGS.alphabet)
-         c_bpread = index2base(np.argmax(consensus,axis = 0))
-         np.set_printoptions(threshold=np.nan)
-         assembly_time=time.time()-start_time
-         print("Assembly finished, begin output. %5.2f seconds"%(time.time()-start_time))
-         list_of_time = [start_time,reading_time,basecall_time,assembly_time]
-         write_output(bpreads,c_bpread,list_of_time,file_pre,suffix = FLAGS.extension,q_score = qs_string)
+        for name in file_list:
+            start_time = time.time()
+            if not name.endswith('.signal'):
+                continue
+            file_pre = os.path.splitext(name)[0]
+            input_path = os.path.join(file_dir,name)
+            eval_data = read_data_for_eval(input_path,FLAGS.start,seg_length = FLAGS.segment_len,step = FLAGS.jump)
+            reads_n = eval_data.reads_n
+            reading_time=time.time()-start_time
+            reads = list()
+            qs_list = np.empty((0,1),dtype = np.float)
+            qs_string = None
+            for i in range(0,reads_n,FLAGS.batch_size):
+                batch_x,seq_len,_ = eval_data.next_batch(FLAGS.batch_size,shuffle = False)
+                batch_x=np.pad(batch_x,((0,FLAGS.batch_size-len(batch_x)),(0,0)),mode='constant')
+                seq_len=np.pad(seq_len,((0,FLAGS.batch_size-len(seq_len))),mode='constant')
+                feed_dict = {x:batch_x,seq_length:seq_len,training:False}
+                if FLAGS.extension=='fastq':
+                    predict_val,logits_prob= sess.run([predict,prob],feed_dict = feed_dict)
+                else:
+                    predict_val= sess.run(predict,feed_dict = feed_dict)
+                predict_read,unique = sparse2dense(predict_val)
+                predict_read = predict_read[0]
+                unique = unique[0]
+
+                if FLAGS.extension=='fastq':
+                    logits_prob = logits_prob[unique]
+                if i+FLAGS.batch_size>reads_n:
+                    predict_read = predict_read[:reads_n-i]
+                    if FLAGS.extension == 'fastq':
+                        logits_prob = logits_prob[:reads_n-i]
+                if FLAGS.extension == 'fastq':
+                    qs_list = np.concatenate((qs_list,logits_prob))
+                reads+=predict_read
+            print("Segment reads base calling finished, begin to assembly. %5.2f seconds"%(time.time()-start_time))
+            basecall_time=time.time()-start_time
+            bpreads = [index2base(read) for read in reads]
+            if FLAGS.extension == 'fastq':
+                consensus,qs_consensus = simple_assembly_qs(bpreads,qs_list,FLAGS.alphabet)
+                qs_string = qs(consensus,qs_consensus)
+            else:
+                consensus = simple_assembly(bpreads,FLAGS.alphabet)
+            c_bpread = index2base(np.argmax(consensus,axis = 0))
+            np.set_printoptions(threshold=np.nan)
+            assembly_time=time.time()-start_time
+            print("Assembly finished, begin output. %5.2f seconds"%(time.time()-start_time))
+            list_of_time = [start_time,reading_time,basecall_time,assembly_time]
+            write_output(bpreads,c_bpread,list_of_time,file_pre,suffix = FLAGS.extension,q_score = qs_string)
 
 def run(args):
     global FLAGS
