@@ -99,7 +99,7 @@ def train():
 
     hdf5_record = h5py.File(h5py_file_path,"a")
 
-    train_ds = read_raw_data_sets(FLAGS.data_dir,hdf5_record,FLAGS.sequence_len,FLAGS.k_mer,FLAGS.alphabet,FLAGS.jump)
+    train_ds = read_raw_data_sets(FLAGS.data_dir,hdf5_record,FLAGS.sequence_len,FLAGS.k_mer,FLAGS.alphabet,FLAGS.jump,FLAGS.smooth_window,FLAGS.skip_step)
     start=time.time()
     for i in range(FLAGS.max_steps):
         batch_x,seq_len,batch_y = train_ds.next_batch(FLAGS.batch_size)
@@ -115,7 +115,7 @@ def train():
 	    end = time.time()
             print "Step %d/%d Epoch %d, batch number %d, loss: %5.3f edit_distance: %5.3f Elapsed Time/step: %5.3f"\
             %(i,FLAGS.max_steps,train_ds.epochs_completed,train_ds.index_in_epoch,loss_val,error_val,(end-start)/(i+1))
-#            saver.save(sess,FLAGS.log_dir+FLAGS.model_name+'/model.ckpt',global_step=global_step_val)
+            saver.save(sess,FLAGS.log_dir+FLAGS.model_name+'/model.ckpt',global_step=global_step_val)
             summary_str = sess.run(summary, feed_dict=feed_dict)
             summary_writer.add_summary(summary_str, global_step = global_step_val)
             summary_writer.flush()
@@ -132,6 +132,9 @@ def run(args):
     FLAGS.data_dir = FLAGS.data_dir + os.path.sep
     FLAGS.log_dir = FLAGS.log_dir + os.path.sep
     FLAGS.alphabet = FLAGS.alphabet.upper()
+    if FLAGS.skip_step < 1:
+        FLAGS.skip_step = 1
+
     train()
 
 if __name__ == "__main__":

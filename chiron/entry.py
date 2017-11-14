@@ -36,6 +36,8 @@ def main(arguments=sys.argv[1:]):
     parser_call.add_argument('-t','--threads',type = int,default = 0,help = "Threads number")
     parser_call.add_argument('-e','--extension',default = 'fastq',help = "Output file type.")
     parser_call.add_argument('-a','--alphabet',type=str,default='ATCG',help="Type of bases in the data. Default: ATCG")
+    parser_call.add_argument('-w','--smooth_window',type=int,default=0,help="Signal smoothing window. 0: no smoothing window")
+    parser_call.add_argument('-z','--skip_step',type=int,default=1,help="Number of skipped signals. Better to use in conjonction with -w. 1: no skipped signals")
     parser_call.set_defaults(func=evaluation)
 
     #parser for 'extract' command
@@ -60,6 +62,8 @@ def main(arguments=sys.argv[1:]):
     parser_train.add_argument('-k','--k_mer',type=int,default=1,help="Output k-mer size.")
     parser_train.add_argument('-a','--alphabet',type=str,default='ATCG',help="Type of bases in the data. Default: ATCG")
     parser_train.add_argument('-j','--jump',type=int,default=0,help="Step size for segment. 0: no sliding window")
+    parser_train.add_argument('-w','--smooth_window',type=int,default=0,help="Signal smoothing window. 0: no smoothing window")
+    parser_train.add_argument('-z','--skip_step',type=int,default=1,help="Number of skipped signals. Better to use in conjonction with -w. 1: no skipped signals")
     parser_train.set_defaults(func=chiron_rcnn_train.run)
 
     args=parser.parse_args(arguments)

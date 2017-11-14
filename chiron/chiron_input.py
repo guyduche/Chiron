@@ -191,29 +191,27 @@ class DataSet(object):
         seq_length = event_batch[:,1].astype(np.int32)
         return np.vstack(event_batch[:,0]).astype(np.float32),seq_length,label_batch
 
-def read_data_for_eval(file_path,start_index=0,step = 30,seg_length = 200):
+def read_data_for_eval(file_path,start_index,seg_length,step,smooth_window,skip_step):
     '''
     Input Args:
         file_path: file path to a signal file.
         start_index: the index of the signal start to read.
     '''
-    if not file_path.endswith('.signal'):
-        raise ValueError('A .signal file is required.')
-    else:
-        event = list()
-        event_len = list()
-        label = list()
-        label_len = list()
-        f_signal = read_signal(file_path,normalize = True)
-        f_signal = f_signal[start_index:]
-        sig_len = len(f_signal)
-        for indx in range(0,sig_len,step):
+    event = []
+    event_len = []
+
+    f_signal = read_signal(file_path, smooth_window, skip_step, normalize = True)
+
+    f_signal = f_signal[start_index/skip_step:]
+    sig_len = len(f_signal)
+
+    if sig_len > seg_length:
+        for indx in range(0, sig_len - seg_length, step):
             segment_sig = f_signal[indx:indx+seg_length]
-            segment_len = len(segment_sig)
-            padding(segment_sig,seg_length)
             event.append(segment_sig)
-            event_len.append(segment_len)
-        evaluation = DataSet(event = event,event_length = event_len,label = label,label_length = label_len,for_eval = True)
+            event_len.append(len(segment_sig))
+
+    evaluation = DataSet(event = event,event_length = event_len,label = [],label_length = [],for_eval = True)
     return evaluation
 
 #def read_cache_dataset(h5py_file_path):
@@ -235,7 +233,7 @@ def read_data_for_eval(file_path,start_index=0,step = 30,seg_length = 200):
 #    label_length = biglist(data_handle = label_length_h,length = label_len,cache = True)
 #    return DataSet(event = event,event_length = event_length,label = label,label_length = label_length)
 
-def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,jump,max_reads_num = FLAGS.max_reads_number):
+def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,jump,smooth_window,skip_step,max_reads_num = FLAGS.max_reads_number):
     ###Read from raw data
 #    with h5py.File(h5py_file_path,"a") as hdf5_record :
     event_h = hdf5_record.create_dataset('event/record',dtype = 'float32', shape=(0,seq_length),maxshape = (None,seq_length))
@@ -251,11 +249,11 @@ def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,jump,max_r
     for name in os.listdir(data_dir):
         if name.endswith(".signal"):
             file_pre = os.path.splitext(name)[0]
-            f_signal = read_signal(data_dir+name)
+            f_signal = read_signal(data_dir+name, smooth_window, skip_step)
             if len(f_signal)==0:
                 continue
             try:
-                f_label = read_label(data_dir+file_pre+'.label', 0, alphabet)
+                f_label = read_label(data_dir+file_pre+'.label', 0, alphabet, skip_step)
             except:
                 sys.stdout.write("Read the label %s fail.Skipped."%(name))
                 continue
@@ -298,26 +296,46 @@ def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,jump,max_r
 #            print("Successfully read %d"%(file_count))
     assert len(event) == len(event_length)
     assert len(label) == len(label_length)
-    train_event = event
-    train_event_length = event_length
-    train_label = label
-    train_label_length = label_length
-    train = DataSet(event = train_event,event_length = train_event_length,label = train_label,label_length = train_label_length)
+
+    train = DataSet(event = event,event_length = event_length,label = label,label_length = label_length)
 #    train = read_cache_dataset(h5py_file_path)
     return train
 
-def read_signal(file_path,normalize = True):
+def signal_smoothing(signal, window, step):
+    smoothed_signal = np.array([])
+    len_signal = len(signal)
+
+    for indx in range(0, len_signal - window, step):
+        if window:
+            window_signal = signal[indx:indx+window]
+            smoothed_signal = np.append(smoothed_signal, np.median(window_signal))
+        else:
+            window_signal = signal[indx]
+            smoothed_signal = np.append(smoothed_signal, window_signal)
+
+    return smoothed_signal
+
+def read_signal(file_path, smooth_window, skip_step, normalize = True):
+    signal = []
+
     with open(file_path,'r') as f_h:
-        signal = []
         for line in f_h:
             for x in line.split():
                 signal.append(np.float(x))
         signal = np.asarray(signal)
 
-    if len(signal)==0:
+    len_signal = len(signal)
+    if len_signal == 0:
         return signal.tolist()
+
+    if smooth_window or skip_step != 1:
+        if len_signal < smooth_window:
+            return [[]]
+        signal = signal_smoothing(signal, smooth_window, skip_step)
+
     if normalize:
         signal = (signal - signal.mean()) / signal.std()
+
     return signal.tolist()
 
 def base2ind(base, alphabet):
@@ -325,7 +343,7 @@ def base2ind(base, alphabet):
         base = base[0]
     return alphabet.index(base.upper())
 
-def read_label(file_path, skip_start, alphabet):
+def read_label(file_path, skip_start, alphabet, skip_step):
     start = []
     end = []
     base = []
@@ -335,9 +353,10 @@ def read_label(file_path, skip_start, alphabet):
         for count, line in enumerate(f_h):
             if count < skip_start:
                 continue
+
             record = line.split()
-            start.append(int(record[0]))
-            end.append(int(record[1]))
+            start.append(int(record[0]) / skip_step)
+            end.append(int(record[1]) / skip_step)
             base.append(base2ind(record[2], alphabet))
 
     return raw_labels(start=start,end=end,base=base)

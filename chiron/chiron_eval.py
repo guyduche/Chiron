@@ -141,7 +141,7 @@ def evaluation():
                 continue
             file_pre = os.path.splitext(name)[0]
             input_path = os.path.join(file_dir,name)
-            eval_data = read_data_for_eval(input_path,FLAGS.start,seg_length = FLAGS.segment_len,step = FLAGS.jump)
+            eval_data = read_data_for_eval(input_path,FLAGS.start,FLAGS.segment_len,FLAGS.jump,FLAGS.smooth_window,FLAGS.skip_step)
             reads_n = eval_data.reads_n
             reading_time=time.time()-start_time
             reads = list()
@@ -186,8 +186,12 @@ def evaluation():
 
 def run(args):
     global FLAGS
-    FLAGS=args
-    time_dict=unix_time(evaluation)
+    FLAGS = args
+    if FLAGS.skip_step < 1:
+        FLAGS.skip_step = 1
+
+    time_dict = unix_time(evaluation)
+
     print(FLAGS.output)
     print('Real time:%5.3f Systime:%5.3f Usertime:%5.3f'%(time_dict['real'],time_dict['sys'],time_dict['user']))
     meta_folder = os.path.join(FLAGS.output,'meta')
@@ -213,5 +217,7 @@ if __name__=="__main__":
     parser.add_argument('-t','--threads',type = int,default = 0,help = "Threads number")
     parser.add_argument('-e','--extension',default = 'fastq',help = "Output file extension.")
     parser.add_argument('-a','--alphabet',type=str,default='ATCG',help="Type of bases in the data. Default: ATCG")
+    parser.add_argument('-w','--smooth_window',type=int,default=0,help="Signal smoothing window. 0: no smoothing window")
+    parser.add_argument('-z','--skip_step',type=int,default=1,help="Number of skipped signals. Better to use in conjonction with -w. 1: no skipped signals")
     args=parser.parse_args(sys.argv[1:])
     run(args)
