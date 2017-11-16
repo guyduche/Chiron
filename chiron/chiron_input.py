@@ -191,7 +191,7 @@ class DataSet(object):
         seq_length = event_batch[:,1].astype(np.int32)
         return np.vstack(event_batch[:,0]).astype(np.float32),seq_length,label_batch
 
-def read_data_for_eval(file_path,start_index,seg_length,step,smooth_window,skip_step):
+def read_data_for_eval(file_path,start_index,seg_length,step,smooth_window,skip_step,normalize):
     '''
     Input Args:
         file_path: file path to a signal file.
@@ -200,7 +200,7 @@ def read_data_for_eval(file_path,start_index,seg_length,step,smooth_window,skip_
     event = []
     event_len = []
 
-    f_signal = read_signal(file_path, smooth_window, skip_step, normalize = True)
+    f_signal = read_signal(file_path, smooth_window, skip_step, normalize)
 
     f_signal = f_signal[start_index/skip_step:]
     sig_len = len(f_signal)
@@ -233,7 +233,7 @@ def read_data_for_eval(file_path,start_index,seg_length,step,smooth_window,skip_
 #    label_length = biglist(data_handle = label_length_h,length = label_len,cache = True)
 #    return DataSet(event = event,event_length = event_length,label = label,label_length = label_length)
 
-def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,jump,smooth_window,skip_step,max_reads_num = FLAGS.max_reads_number):
+def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,jump,smooth_window,skip_step,normalize,max_reads_num = FLAGS.max_reads_number):
     ###Read from raw data
 #    with h5py.File(h5py_file_path,"a") as hdf5_record :
     event_h = hdf5_record.create_dataset('event/record',dtype = 'float32', shape=(0,seq_length),maxshape = (None,seq_length))
@@ -249,7 +249,7 @@ def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,jump,smoot
     for name in os.listdir(data_dir):
         if name.endswith(".signal"):
             file_pre = os.path.splitext(name)[0]
-            f_signal = read_signal(data_dir+name, smooth_window, skip_step)
+            f_signal = read_signal(data_dir+name, smooth_window, skip_step, normalize)
             if len(f_signal)==0:
                 continue
             try:
@@ -316,7 +316,7 @@ def signal_smoothing(signal, window, step):
 
     return smoothed_signal
 
-def read_signal(file_path, smooth_window, skip_step, normalize = True):
+def read_signal(file_path, smooth_window, skip_step, normalize):
     signal = []
 
     with open(file_path,'r') as f_h:

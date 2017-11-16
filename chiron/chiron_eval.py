@@ -141,7 +141,7 @@ def evaluation():
                 continue
             file_pre = os.path.splitext(name)[0]
             input_path = os.path.join(file_dir,name)
-            eval_data = read_data_for_eval(input_path,FLAGS.start,FLAGS.segment_len,FLAGS.jump,FLAGS.smooth_window,FLAGS.skip_step)
+            eval_data = read_data_for_eval(input_path,FLAGS.start,FLAGS.segment_len,FLAGS.jump,FLAGS.smooth_window,FLAGS.skip_step,FLAGS.normalize)
             reads_n = eval_data.reads_n
             reading_time=time.time()-start_time
             reads = list()
@@ -219,5 +219,6 @@ if __name__=="__main__":
     parser.add_argument('-a','--alphabet',type=str,default='ATCG',help="Type of bases in the data. Default: ATCG")
     parser.add_argument('-w','--smooth_window',type=int,default=0,help="Signal smoothing window. 0: no smoothing window")
     parser.add_argument('-z','--skip_step',type=int,default=1,help="Number of skipped signals. Better to use in conjonction with -w. 1: no skipped signals")
+    parser.add_argument('-x','--normalize',type=bool,default=True,help="Signal normalization. Default: True")
     args=parser.parse_args(sys.argv[1:])
     run(args)
