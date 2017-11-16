@@ -206,7 +206,7 @@ def read_data_for_eval(file_path,start_index,seg_length,step,smooth_window,skip_
     sig_len = len(f_signal)
 
     if sig_len > seg_length:
-        for indx in range(0, sig_len - seg_length, step):
+        for indx in range(0, sig_len - seg_length +1, step):
             segment_sig = f_signal[indx:indx+seg_length]
             event.append(segment_sig)
             event_len.append(len(segment_sig))
@@ -302,16 +302,17 @@ def read_raw_data_sets(data_dir,hdf5_record,seq_length,k_mer,alphabet,jump,smoot
     return train
 
 def signal_smoothing(signal, window, step):
-    smoothed_signal = np.array([])
     len_signal = len(signal)
+    len_smoothed_signal = (len_signal - window) / step +1
+    smoothed_signal = np.empty(dtype=np.int32, shape=len_smoothed_signal)
 
-    for indx in range(0, len_signal - window, step):
-        if window:
-            window_signal = signal[indx:indx+window]
-            smoothed_signal = np.append(smoothed_signal, np.median(window_signal))
-        else:
-            window_signal = signal[indx]
-            smoothed_signal = np.append(smoothed_signal, window_signal)
+    if window:
+        for i,j in enumerate(np.arange(0, len_signal - window +1, step)):
+            smoothed_signal[i] = np.median(signal[j : j + window])
+
+    else:
+        for i,j in enumerate(np.arange(0, len_signal, step)):
+            smoothed_signal[i] = signal[j]
 
     return smoothed_signal
 
@@ -329,7 +330,7 @@ def read_signal(file_path, smooth_window, skip_step, normalize = True):
         return signal.tolist()
 
     if smooth_window or skip_step != 1:
-        if len_signal < smooth_window:
+        if len_signal <= smooth_window:
             return [[]]
         signal = signal_smoothing(signal, smooth_window, skip_step)
 
@@ -386,7 +387,7 @@ def read_raw_sliding(raw_signal,raw_label,max_seq_length,jump):
                 if raw_label.start[indw] + max_seq_length < raw_label.end[indw]:
                     break
 
-                if raw_label.start[indw] >= indx:
+                if raw_label.start[indw] >= indx and raw_label.start[indw] < indx + max_seq_length:
                     segment_label.append(raw_label.base[indw])
 
                     if raw_label.start[indw] < raw_label.start[start_label] + jump:
